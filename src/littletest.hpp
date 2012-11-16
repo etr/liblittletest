@@ -385,7 +385,7 @@ struct test_runner
         test_runner& operator()()
         {
             std::cout << "** Runner terminated! **" << std::endl;
-            std::cout << test_counter << " tests executed" << std::endl;
+            std::cout << (test_counter - 1) << " tests executed" << std::endl;
             std::cout << (failures_counter + success_counter) << " checks" << std::endl;
             std::cout << "-> " << success_counter << " successes" << std::endl;
             std::cout << "-> " << failures_counter << " failures" << std::endl;
