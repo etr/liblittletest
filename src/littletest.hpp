@@ -348,7 +348,7 @@ class test_base;
 
 std::vector<test_base*> auto_test_vector;
 
-struct test_runner
+class test_runner
 {
     public:
         test_runner() :
