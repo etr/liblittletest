@@ -407,7 +407,7 @@ class test_runner
             std::cout << (failures_counter + success_counter) << " checks" << std::endl;
             std::cout << "-> " << success_counter << " successes" << std::endl;
             std::cout << "-> " << failures_counter << " failures" << std::endl;
-            std::cout << "Total run time: " << total_time << std::endl;
+            std::cout << "Total run time: " << total_time << " ms"<< std::endl;
             std::cout << "Total time spent in tests: " << good_time_total << " ms" << std::endl;
             std::cout << "Average set up time: " << (total_set_up_time / test_counter) << " ms" << std::endl;
             std::cout << "Average tear down time: " << (total_tear_down_time / test_counter) << " ms" << std::endl;
@@ -557,7 +557,7 @@ class test : public test_base
 
             tr->add_good_time(test_duration);
 
-            std::cout << "- Time spent during \"" << static_cast<test_impl* >(this)->__lt_name__ << "\": " << test_duration << std::endl;
+            std::cout << "- Time spent during \"" << static_cast<test_impl* >(this)->__lt_name__ << "\": " << test_duration << " ms"<< std::endl;
 
             try
             {
