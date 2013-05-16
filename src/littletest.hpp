@@ -52,8 +52,6 @@
         littletest::auto_test_runner((*__lt_autorun_it__)); \
     int __lt_result__ = littletest::auto_test_runner();
 
-#define LT_TEST(__lt_name__) __lt_name__ ## _obj
-
 #define LT_CREATE_RUNNER(__lt_suite_name__, __lt_runner_name__) \
     std::cout << "** Initializing Runner \"" << #__lt_runner_name__ << "\" **" << std::endl; \
     littletest::test_runner __lt_runner_name__ 
@@ -70,9 +68,9 @@
 #define LT_CHECKPOINT() __lt_tr__->set_checkpoint(__FILE__, __LINE__)
 
 #define LT_BEGIN_TEST(__lt_suite_name__, __lt_test_name__) \
-    struct __lt_test_name__ : public __lt_suite_name__, littletest::test<__lt_test_name__> \
+    struct __lt_test_name__ ## _class: public __lt_suite_name__, littletest::test<__lt_test_name__ ## _class> \
     { \
-            __lt_test_name__() \
+            __lt_test_name__ ## _class() \
             { \
                 __lt_name__ = #__lt_test_name__; \
                 littletest::auto_test_vector.push_back(this); \
@@ -83,7 +81,7 @@
 #define LT_END_TEST(__lt_test_name__) \
             } \
     }; \
-    __lt_test_name__ __lt_test_name__ ## _obj; \
+    __lt_test_name__ ## _class __lt_test_name__; \
 
 #define LT_BEGIN_AUTO_TEST(__lt_suite_name__, __lt_test_name__) LT_BEGIN_TEST(__lt_suite_name__, __lt_test_name__)
 
@@ -375,6 +373,12 @@ class test_runner
 
             test_counter++;
             return *this;
+        }
+
+        template <class test_impl>
+        test_runner& operator()(test_impl& t)
+        {
+            return run(&t);
         }
 
         template <class test_impl>
