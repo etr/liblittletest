@@ -27,7 +27,40 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
-#include <sys/time.h>
+// https://sourceforge.net/p/predef/wiki/OperatingSystems/
+#ifndef _WIN32
+#  include <sys/time.h>
+#else
+#  include <Windows.h>
+// A simplistic implementation of linux gettimeofday
+// In this application we will only be using deltas
+// so it is sufficient to treat time of day as either:
+// - application epoch (QPC)
+// - or system uptime (when QPC not available)
+static LARGE_INTEGER StartingTime = {.QuadPart = 0};
+int gettimeofday(struct timeval * tp, struct timezone * tzp){
+    LARGE_INTEGER lpFrequency;
+    if(QueryPerformanceFrequency(&lpFrequency)){
+        LARGE_INTEGER EndingTime;
+        LARGE_INTEGER ElapsedMicroseconds;
+        if(0 == StartingTime.QuadPart){
+            QueryPerformanceCounter(&StartingTime);
+        }
+        QueryPerformanceCounter(&EndingTime);
+        ElapsedMicroseconds.QuadPart = EndingTime.QuadPart - StartingTime.QuadPart;
+        ElapsedMicroseconds.QuadPart *= 1000000;
+        ElapsedMicroseconds.QuadPart /= lpFrequency.QuadPart; // micro_seconds
+
+        tp->tv_sec  = ElapsedMicroseconds.QuadPart / 1000000L;
+        tp->tv_usec = ElapsedMicroseconds.QuadPart - ( tp->tv_sec *1000000L);
+    }else{
+        long uptime_ms = (long)GetTickCount(); // number of milliseconds that have elapsed since the system was started, up to 49.7 days.
+        tp->tv_sec  = uptime_ms / 1000L;
+        tp->tv_usec = 1000L * (uptime_ms - ( tp->tv_sec *1000L));
+    }
+    return 0;
+}
+#endif
 #include <vector>
 
 #define LT_VERSION 1.0
