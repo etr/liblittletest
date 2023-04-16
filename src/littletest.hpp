@@ -87,7 +87,7 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp){
 
 #define LT_CREATE_RUNNER(__lt_suite_name__, __lt_runner_name__) \
     std::cout << "** Initializing Runner \"" << #__lt_runner_name__ << "\" **" << std::endl; \
-    littletest::test_runner __lt_runner_name__ 
+    littletest::test_runner __lt_runner_name__
 
 #define LT_RUNNER(__lt_runner_name__) __lt_runner_name__
 
@@ -157,6 +157,13 @@ int gettimeofday(struct timeval * tp, struct timezone * tzp){
     try \
     { \
         (__lt_operation__) ;\
+    } \
+    catch(std::exception& e) \
+    { \
+        std::stringstream __lt_ss__; \
+        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\": exceptions thown by " << #__lt_operation__; \
+        __lt_ss__ << " [ " << e.what() << " ]"; \
+        LT_SWITCH_MODE(__lt_mode__) \
     } \
     catch(...) \
     { \
@@ -314,7 +321,7 @@ struct check_unattended : public std::exception
     {
         return message.c_str();
     }
-    
+
     private:
         std::string message;
 };
@@ -329,8 +336,8 @@ struct assert_unattended : public std::exception
     virtual const char* what() const throw()
     {
         return message.c_str();
-    } 
-    
+    }
+
     private:
         std::string message;
 };
@@ -345,8 +352,8 @@ struct warn_unattended : public std::exception
     virtual const char* what() const throw()
     {
         return message.c_str();
-    } 
-    
+    }
+
     private:
         std::string message;
 };
@@ -398,8 +405,8 @@ class test_runner
         template <class test_impl>
         test_runner& run(test_impl* t)
         {
-            std::cout << "Running test (" << 
-                test_counter << "): " << 
+            std::cout << "Running test (" <<
+                test_counter << "): " <<
                 t->__lt_name__ << std::endl;
 
             t->run_test(this);
@@ -555,12 +562,14 @@ class test : public test_base
             }
             catch(std::exception& e)
             {
-                std::cout << "Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " set up" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " set up" << std::endl;
                 std::cout << e.what() << std::endl;
+                tr->add_failure();
             }
             catch(...)
             {
-                std::cout << "Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " set up" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " set up" << std::endl;
+                tr->add_failure();
             }
             try
             {
@@ -573,16 +582,18 @@ class test : public test_base
             }
             catch(std::exception& e)
             {
-                std::cout << "Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " run" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " run" << std::endl;
                 std::cout << e.what() << std::endl;
                 if(tr->last_checkpoint_line != -1)
                     std::cout << "Last checkpoint in " << tr->last_checkpoint_file << ":" << tr->last_checkpoint_line << std::endl;
+                tr->add_failure();
             }
             catch(...)
             {
-                std::cout << "Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " run" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " run" << std::endl;
                 if(tr->last_checkpoint_line != -1)
                     std::cout << "Last checkpoint in " << tr->last_checkpoint_file << ":" << tr->last_checkpoint_line << std::endl;
+                tr->add_failure();
             }
             gettimeofday(&after, NULL);
 
@@ -602,12 +613,14 @@ class test : public test_base
             }
             catch(std::exception& e)
             {
-                std::cout << "Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " tear down" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " tear down" << std::endl;
                 std::cout << e.what() << std::endl;
+                tr->add_failure();
             }
             catch(...)
             {
-                std::cout << "Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " tear down" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " tear down" << std::endl;
+                tr->add_failure();
             }
             double total = set_up_duration + test_duration + tear_down_duration;
             tr->add_total_time(total);
@@ -619,6 +632,6 @@ class test : public test_base
         friend class test_runner;
 };
 
-};
+}
 
 #endif //_LITTLETEST_HPP_
