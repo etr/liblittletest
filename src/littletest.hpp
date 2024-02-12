@@ -372,6 +372,9 @@ class suite
             static_cast<suite_impl*>(this)->tear_down();
         }
 
+        void set_up() { }
+        void tear_down() { }
+
         suite() { }
         suite(const suite<suite_impl>& s) { }
 };
