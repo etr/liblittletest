@@ -102,6 +102,51 @@ LT_CHECK_LTE(n,0.0);
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("-> 4 failures", result.stdout)
 
+    def test_comparisons_do_not_capture_caller_operand_names(self):
+        result = self.run_test_body('''
+int lt_left_value_ = 1, lt_right_value_ = 2;
+LT_WARN_EQ(lt_left_value_,1);
+LT_CHECK_EQ(lt_right_value_,2);
+LT_ASSERT_GT(lt_right_value_,lt_left_value_);
+LT_CHECK_EQ(3,lt_left_value_+2);
+''')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("[WARN]", result.stdout)
+        self.assertIn("-> 3 successes", result.stdout)
+
+    def test_throw_checks_do_not_capture_caller_flag_name(self):
+        result = self.run_test_body('''
+bool lt_thrown_ = true;
+LT_WARN_THROW(lt_thrown_ ? throw 1 : 0);
+LT_CHECK_THROW(lt_thrown_ ? throw 2 : 0);
+LT_ASSERT_THROW(lt_thrown_ ? throw 3 : 0);
+''')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("[WARN]", result.stdout)
+        self.assertIn("-> 2 successes", result.stdout)
+
+    def test_throw_checks_do_not_capture_caller_stream_name(self):
+        result = self.run_test_body('''
+bool lt_ss_ = false;
+LT_CHECK_THROW(lt_ss_ ? 0 : throw 1);
+''')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("-> 1 successes", result.stdout)
+
+    def test_comparisons_evaluate_left_to_right_without_copying_lvalues(self):
+        result = self.run_test_body('''
+std::string order;
+auto left = [&]() { order += "L"; return 1; };
+auto right = [&]() { order += "R"; return 1; };
+LT_CHECK_EQ(left(),right());
+int value = 1;
+LT_CHECK_EQ(value,++value);
+std::cout << "operand order: " << order << ", value: " << value << std::endl;
+''')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("operand order: LR, value: 2", result.stdout)
+        self.assertIn("-> 2 successes", result.stdout)
+
     def test_comparison_uses_requested_operator(self):
         result = self.run_test_body('''
 EqualOnly a, b;

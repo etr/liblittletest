@@ -107,17 +107,16 @@
     }
 
 #define LT_THROW_OP(lt_name_, lt_operation_, lt_file_, lt_line_, lt_mode_) \
-    bool lt_thrown_ = false; \
-    std::stringstream lt_ss_; \
-    try \
+    if(![&]() { \
+        try { (lt_operation_); } \
+        catch(...) { return true; } \
+        return false; \
+    }()) \
     { \
-        (lt_operation_) ;\
+        std::stringstream lt_ss_; \
         lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": no exceptions thown by " << #lt_operation_; \
-        lt_thrown_ = true; \
-    } \
-    catch(...) { } \
-    if(lt_thrown_) \
-        LT_SWITCH_MODE(lt_mode_)
+        LT_SWITCH_MODE(lt_mode_) \
+    }
 
 #define LT_NOTHROW_OP(lt_name_, lt_operation_, lt_file_, lt_line_, lt_mode_) \
     try \
@@ -138,13 +137,22 @@
         LT_SWITCH_MODE(lt_mode_) \
     }
 
+#define LT_DETAIL_JOIN_IMPL(lt_prefix_, lt_suffix_) lt_prefix_ ## lt_suffix_
+#define LT_DETAIL_JOIN(lt_prefix_, lt_suffix_) LT_DETAIL_JOIN_IMPL(lt_prefix_, lt_suffix_)
+
+// Generate operand bindings per invocation without changing evaluation or lifetime.
 #define LT_OP(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_) \
-    const auto& lt_left_value_ = (lt_a_); \
-    const auto& lt_right_value_ = (lt_b_); \
-    if(!(lt_left_value_ lt_op_ lt_right_value_)) \
+    LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, \
+        LT_DETAIL_JOIN(lt_comparison_left_at_line_, __LINE__), \
+        LT_DETAIL_JOIN(lt_comparison_right_at_line_, __LINE__))
+
+#define LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, lt_left_local_, lt_right_local_) \
+    const auto& lt_left_local_ = (lt_a_); \
+    const auto& lt_right_local_ = (lt_b_); \
+    if(!(lt_left_local_ lt_op_ lt_right_local_)) \
     { \
         std::stringstream lt_ss_; \
-        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": " << lt_left_value_ << " " << #lt_op_ << " " << lt_right_value_; \
+        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": " << lt_left_local_ << " " << #lt_op_ << " " << lt_right_local_; \
         LT_SWITCH_MODE(lt_mode_) \
     }
 
