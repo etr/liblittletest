@@ -11,6 +11,11 @@ The header can be included in multiple source files in the same test executable.
 Define the test environment (which supplies `main`) in exactly one source file,
 and give tests unique names within their namespace.
 
+Download [littletest.hpp for v2.0.0](https://github.com/etr/liblittletest/releases/download/v2.0.0/littletest.hpp)
+or see the [release notes](https://github.com/etr/liblittletest/releases/tag/v2.0.0).
+`LT_VERSION` is the numeric major/minor version (`2.0`);
+`LT_VERSION_STRING` contains the full version (`"2.0.0"`).
+
 # How to use
 ## Preparing Tests
 ### Suites
