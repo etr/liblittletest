@@ -36,8 +36,8 @@
 #include <type_traits>
 #include <vector>
 
-#define LT_VERSION 2.0
-#define LT_VERSION_STRING "2.0.0"
+#define LT_VERSION 2.1
+#define LT_VERSION_STRING "2.1.0"
 
 #define LT_MODE_WARN 0
 #define LT_MODE_CHECK 1

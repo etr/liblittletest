@@ -11,14 +11,14 @@ The header can be included in multiple source files in the same test executable.
 Define the test environment (which supplies `main`) in exactly one source file,
 and give tests unique names within their namespace.
 
-Download [littletest.hpp for v2.0.0](https://github.com/etr/liblittletest/releases/download/v2.0.0/littletest.hpp)
-or see the [release notes](https://github.com/etr/liblittletest/releases/tag/v2.0.0).
-`LT_VERSION` is the numeric major/minor version (`2.0`);
-`LT_VERSION_STRING` contains the full version (`"2.0.0"`).
+Download [littletest.hpp for v2.1.0](https://github.com/etr/liblittletest/releases/download/v2.1.0/littletest.hpp)
+or see the [release notes](https://github.com/etr/liblittletest/releases/tag/v2.1.0).
+`LT_VERSION` is the numeric major/minor version (`2.1`);
+`LT_VERSION_STRING` contains the full version (`"2.1.0"`).
 
-The diagnostics, command-line options, typed exception checks, and near comparisons
-described below are unreleased additions in the development header. The pinned
-v2.0.0 download above predates these additions.
+Version 2.1.0 adds richer diagnostics and optional messages, command-line test
+listing and filtering, typed exception checks, and explicit-tolerance near
+comparisons. It retains C++11 support and the single-header distribution.
 
 # How to use
 ## Preparing Tests
@@ -102,7 +102,7 @@ Also in this case, tests are executed by a runner and inside an environment, but
         AUTORUN_TESTS()
     LT_END_AUTO_TEST_ENV()
 
-### Listing and selecting tests (unreleased)
+### Listing and selecting tests
 
 Both manual and automatic environments accept these command-line options without
 changing their macro call sites:
@@ -186,7 +186,7 @@ reference for comparison and diagnostics. For example, a failed
 `LT_CHECK_EQ(++i, 0)` increments `i` once. Ordered comparisons with `NaN` fail.
 Assertion macros can be used as ordinary statements in `if`/`else` branches.
 
-### Failure details and optional messages (unreleased)
+### Failure details and optional messages
 
 Boolean failures include their source expression. Comparison failures include
 both operand expressions and their actual values, in addition to the test name,
@@ -205,7 +205,7 @@ Messages without stream insertion use the same `<unprintable>` fallback.
 These macros preserve the usual warning, continuing check, and aborting assertion
 behavior.
 
-### Expected exception types (unreleased)
+### Expected exception types
 
     LT_CHECK_THROW_AS(parse(input), std::invalid_argument);
 
@@ -218,7 +218,7 @@ exception is consumed so a failed check can continue. Warnings remain nonfatal,
 and failed assertions stop the test while still allowing fixture cleanup.
 The original `*_THROW` macros continue to accept any exception type.
 
-### Floating-point comparisons (unreleased)
+### Floating-point comparisons
 
     LT_CHECK_NEAR(actual, expected, 0.001);
 
