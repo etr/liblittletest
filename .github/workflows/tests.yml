@@ -1,0 +1,29 @@
+name: Header regression tests
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        compiler: [g++, clang++]
+        standard: [c++11, c++20]
+    env:
+      CXX: ${{ matrix.compiler }}
+      CXXFLAGS: -std=${{ matrix.standard }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tests/test_littletest.py -v
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    env:
+      CXX: clang++
+      CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -g
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tests/test_littletest.py -v

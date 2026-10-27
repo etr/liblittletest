@@ -20,291 +20,262 @@
 
 //TODO: personalized messages
 
-#ifndef _LITTLETEST_HPP_
-#define _LITTLETEST_HPP_
+#ifndef LITTLETEST_HPP_INCLUDED
+#define LITTLETEST_HPP_INCLUDED
 
 #include <string>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
-// https://sourceforge.net/p/predef/wiki/OperatingSystems/
-#ifndef _WIN32
-#  include <sys/time.h>
-#else
-#  include <Windows.h>
-// A simplistic implementation of linux gettimeofday
-// In this application we will only be using deltas
-// so it is sufficient to treat time of day as either:
-// - application epoch (QPC)
-// - or system uptime (when QPC not available)
-static LARGE_INTEGER StartingTime = {.QuadPart = 0};
-int gettimeofday(struct timeval * tp, struct timezone * tzp){
-    LARGE_INTEGER lpFrequency;
-    if(QueryPerformanceFrequency(&lpFrequency)){
-        LARGE_INTEGER EndingTime;
-        LARGE_INTEGER ElapsedMicroseconds;
-        if(0 == StartingTime.QuadPart){
-            QueryPerformanceCounter(&StartingTime);
-        }
-        QueryPerformanceCounter(&EndingTime);
-        ElapsedMicroseconds.QuadPart = EndingTime.QuadPart - StartingTime.QuadPart;
-        ElapsedMicroseconds.QuadPart *= 1000000;
-        ElapsedMicroseconds.QuadPart /= lpFrequency.QuadPart; // micro_seconds
-
-        tp->tv_sec  = ElapsedMicroseconds.QuadPart / 1000000L;
-        tp->tv_usec = ElapsedMicroseconds.QuadPart - ( tp->tv_sec *1000000L);
-    }else{
-        long uptime_ms = (long)GetTickCount(); // number of milliseconds that have elapsed since the system was started, up to 49.7 days.
-        tp->tv_sec  = uptime_ms / 1000L;
-        tp->tv_usec = 1000L * (uptime_ms - ( tp->tv_sec *1000L));
-    }
-    return 0;
-}
-#endif
+#include <chrono>
+#include <cstdlib>
+#include <exception>
 #include <vector>
 
 #define LT_VERSION 1.0
 
-#define WARN 0
-#define CHECK 1
-#define ASSERT 2
+#define LT_MODE_WARN 0
+#define LT_MODE_CHECK 1
+#define LT_MODE_ASSERT 2
 
-#define LT_BEGIN_TEST_ENV() int main() {
+#define LT_BEGIN_TEST_ENV() int main() { \
+    littletest::detail::environment_failed() = false;
 
-#define LT_END_TEST_ENV() }
+#define LT_END_TEST_ENV() \
+    return littletest::detail::environment_failed() ? EXIT_FAILURE : EXIT_SUCCESS; \
+    }
 
 #define LT_BEGIN_AUTO_TEST_ENV() LT_BEGIN_TEST_ENV()
 
-#define LT_END_AUTO_TEST_ENV() \
-        return (__lt_result__); \
-    }
+#define LT_END_AUTO_TEST_ENV() LT_END_TEST_ENV()
 
-#define AUTORUN_TESTS() \
-    std::vector<littletest::test_base*>::iterator __lt_autorun_it__; \
-    for(__lt_autorun_it__ = littletest::auto_test_vector.begin(); __lt_autorun_it__ != littletest::auto_test_vector.end(); ++__lt_autorun_it__) \
-        littletest::auto_test_runner((*__lt_autorun_it__)); \
-    int __lt_result__ = littletest::auto_test_runner();
+#define AUTORUN_TESTS() littletest::run_auto_tests();
 
-#define LT_CREATE_RUNNER(__lt_suite_name__, __lt_runner_name__) \
-    std::cout << "** Initializing Runner \"" << #__lt_runner_name__ << "\" **" << std::endl; \
-    littletest::test_runner __lt_runner_name__
+#define LT_CREATE_RUNNER(lt_suite_name_, lt_runner_name_) \
+    std::cout << "** Initializing Runner \"" << #lt_runner_name_ << "\" **" << std::endl; \
+    littletest::test_runner lt_runner_name_
 
-#define LT_RUNNER(__lt_runner_name__) __lt_runner_name__
+#define LT_RUNNER(lt_runner_name_) lt_runner_name_
 
-#define LT_BEGIN_SUITE(__lt_name__) \
-    struct __lt_name__ : public littletest::suite<__lt_name__> \
+#define LT_BEGIN_SUITE(lt_name_) \
+    struct lt_name_ : public littletest::suite<lt_name_> \
     {
 
-#define LT_END_SUITE(__lt_name__) \
+#define LT_END_SUITE(lt_name_) \
     };
 
-#define LT_CHECKPOINT() __lt_tr__->set_checkpoint(__FILE__, __LINE__)
+#define LT_CHECKPOINT() lt_tr_->set_checkpoint(__FILE__, __LINE__)
 
-#define LT_BEGIN_TEST(__lt_suite_name__, __lt_test_name__) \
-    struct __lt_test_name__ ## _class: public __lt_suite_name__, littletest::test<__lt_test_name__ ## _class> \
+#define LT_BEGIN_TEST(lt_suite_name_, lt_test_name_) \
+    struct lt_test_name_ ## _class: public lt_suite_name_, littletest::test<lt_test_name_ ## _class> \
     { \
-            __lt_test_name__ ## _class() \
+            lt_test_name_ ## _class() \
             { \
-                __lt_name__ = #__lt_test_name__; \
-                littletest::auto_test_vector.push_back(this); \
+                lt_name_ = #lt_test_name_; \
+                littletest::auto_test_vector().push_back(this); \
             } \
-            void operator()(littletest::test_runner* __lt_tr__) \
+            void operator()(littletest::test_runner* lt_tr_) \
             {
 
-#define LT_END_TEST(__lt_test_name__) \
+#define LT_END_TEST(lt_test_name_) \
             } \
     }; \
-    __lt_test_name__ ## _class __lt_test_name__; \
+    lt_test_name_ ## _class lt_test_name_; \
 
-#define LT_BEGIN_AUTO_TEST(__lt_suite_name__, __lt_test_name__) LT_BEGIN_TEST(__lt_suite_name__, __lt_test_name__)
+#define LT_BEGIN_AUTO_TEST(lt_suite_name_, lt_test_name_) LT_BEGIN_TEST(lt_suite_name_, lt_test_name_)
 
-#define LT_END_AUTO_TEST(__lt_test_name__) \
-    LT_END_TEST(__lt_test_name__) \
+#define LT_END_AUTO_TEST(lt_test_name_) \
+    LT_END_TEST(lt_test_name_) \
 
-#define LT_SWITCH_MODE(__lt_mode__) \
-        switch(__lt_mode__) \
+#define LT_SWITCH_MODE(lt_mode_) \
+        switch(lt_mode_) \
         { \
-            case(WARN): \
-                throw littletest::warn_unattended(__lt_ss__.str()); \
-            case(CHECK): \
-                throw littletest::check_unattended(__lt_ss__.str()); \
-            case(ASSERT): \
-                throw littletest::assert_unattended(__lt_ss__.str()); \
+            case(LT_MODE_WARN): \
+                throw littletest::warn_unattended(lt_ss_.str()); \
+            case(LT_MODE_CHECK): \
+                throw littletest::check_unattended(lt_ss_.str()); \
+            case(LT_MODE_ASSERT): \
+                throw littletest::assert_unattended(lt_ss_.str()); \
         }
 
-#define LT_SIMPLE_OP(__lt_name__, __lt_val__, __lt_file__, __lt_line__, __lt_mode__) \
-    if(!((__lt_val__))) \
+#define LT_SIMPLE_OP(lt_name_, lt_val_, lt_file_, lt_line_, lt_mode_) \
+    if(!((lt_val_))) \
     { \
-        std::stringstream __lt_ss__; \
-        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\""; \
-        LT_SWITCH_MODE(__lt_mode__) \
+        std::stringstream lt_ss_; \
+        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\""; \
+        LT_SWITCH_MODE(lt_mode_) \
     }
 
-#define LT_THROW_OP(__lt_name__, __lt_operation__, __lt_file__, __lt_line__, __lt_mode__) \
-    bool __lt_thrown__ = false; \
-    std::stringstream __lt_ss__; \
-    try \
+#define LT_THROW_OP(lt_name_, lt_operation_, lt_file_, lt_line_, lt_mode_) \
+    if(![&]() { \
+        try { (lt_operation_); } \
+        catch(...) { return true; } \
+        return false; \
+    }()) \
     { \
-        (__lt_operation__) ;\
-        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\": no exceptions thown by " << #__lt_operation__; \
-        __lt_thrown__ = true; \
-    } \
-    catch(...) { } \
-    if(__lt_thrown__) \
-        LT_SWITCH_MODE(__lt_mode__)
+        std::stringstream lt_ss_; \
+        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": no exceptions thown by " << #lt_operation_; \
+        LT_SWITCH_MODE(lt_mode_) \
+    }
 
-#define LT_NOTHROW_OP(__lt_name__, __lt_operation__, __lt_file__, __lt_line__, __lt_mode__) \
+#define LT_NOTHROW_OP(lt_name_, lt_operation_, lt_file_, lt_line_, lt_mode_) \
     try \
     { \
-        (__lt_operation__) ;\
+        (lt_operation_) ;\
     } \
     catch(std::exception& e) \
     { \
-        std::stringstream __lt_ss__; \
-        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\": exceptions thown by " << #__lt_operation__; \
-        __lt_ss__ << " [ " << e.what() << " ]"; \
-        LT_SWITCH_MODE(__lt_mode__) \
+        std::stringstream lt_ss_; \
+        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": exceptions thown by " << #lt_operation_; \
+        lt_ss_ << " [ " << e.what() << " ]"; \
+        LT_SWITCH_MODE(lt_mode_) \
     } \
     catch(...) \
     { \
-        std::stringstream __lt_ss__; \
-        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\": exceptions thown by " << #__lt_operation__; \
-        LT_SWITCH_MODE(__lt_mode__) \
+        std::stringstream lt_ss_; \
+        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": exceptions thown by " << #lt_operation_; \
+        LT_SWITCH_MODE(lt_mode_) \
     }
 
-#define LT_COLLEQ_OP(__lt_name__, __lt_first_begin__, __lt_first_end__, __lt_second_begin__, __lt_file__, __lt_line__, __lt_mode__) \
-    if(! std::equal((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__))) \
-    { \
-        std::stringstream __lt_ss__; \
-        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\": collections are different"; \
-        LT_SWITCH_MODE(__lt_mode__) \
-    }
+#define LT_DETAIL_JOIN_IMPL(lt_prefix_, lt_suffix_) lt_prefix_ ## lt_suffix_
+#define LT_DETAIL_JOIN(lt_prefix_, lt_suffix_) LT_DETAIL_JOIN_IMPL(lt_prefix_, lt_suffix_)
 
-#define LT_COLLNEQ_OP(__lt_name__, __lt_first_begin__, __lt_first_end__, __lt_second_begin__, __lt_file__, __lt_line__, __lt_mode__) \
-    if(std::equal((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__))) \
-    { \
-        std::stringstream __lt_ss__; \
-        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\": collections are equal"; \
-        LT_SWITCH_MODE(__lt_mode__) \
-    }
+// Generate operand bindings per invocation without changing evaluation or lifetime.
+#define LT_OP(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_) \
+    LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, \
+        LT_DETAIL_JOIN(lt_comparison_left_at_line_, __LINE__), \
+        LT_DETAIL_JOIN(lt_comparison_right_at_line_, __LINE__))
 
-#define LT_OP(__lt_name__, __lt_a__, __lt_b__, __lt_file__, __lt_line__, __lt_op__, __lt_mode__) \
-    if((__lt_a__) __lt_op__ (__lt_b__)) \
+#define LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, lt_left_local_, lt_right_local_) \
+    const auto& lt_left_local_ = (lt_a_); \
+    const auto& lt_right_local_ = (lt_b_); \
+    if(!(lt_left_local_ lt_op_ lt_right_local_)) \
     { \
-        std::stringstream __lt_ss__; \
-        __lt_ss__ << "(" << __lt_file__ << ":" << __lt_line__ << ") - error in " << "\"" << __lt_name__ << "\": " << (__lt_a__) << #__lt_op__ << (__lt_b__); \
-        LT_SWITCH_MODE(__lt_mode__) \
+        std::stringstream lt_ss_; \
+        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": " << lt_left_local_ << " " << #lt_op_ << " " << lt_right_local_; \
+        LT_SWITCH_MODE(lt_mode_) \
     }
 
 #define LT_CATCH_ERRORS \
-    catch(littletest::check_unattended& __lt_cu__) \
+    catch(littletest::check_unattended& lt_cu_) \
     { \
-        std::cout << "[CHECK FAILURE] " << __lt_cu__.what() << std::endl; \
-        __lt_tr__->add_failure(); \
+        std::cout << "[CHECK FAILURE] " << lt_cu_.what() << std::endl; \
+        lt_tr_->add_failure(); \
     } \
-    catch(littletest::assert_unattended& __lt_au__) \
+    catch(littletest::assert_unattended& lt_au_) \
     { \
-        std::cout << "[ASSERT FAILURE] " << __lt_au__.what() << std::endl; \
-        __lt_tr__->add_failure(); \
-        throw __lt_au__; \
+        std::cout << "[ASSERT FAILURE] " << lt_au_.what() << std::endl; \
+        lt_tr_->add_failure(); \
+        throw lt_au_; \
     } \
-    catch(littletest::warn_unattended& __lt_wu__) \
+    catch(littletest::warn_unattended& lt_wu_) \
     { \
-        std::cout << "[WARN] " << __lt_wu__.what() << std::endl; \
+        std::cout << "[WARN] " << lt_wu_.what() << std::endl; \
     }
 
-#define LT_ADD_SUCCESS(__lt_mode__) \
-    if(__lt_mode__) \
-        __lt_tr__->add_success();
+#define LT_ADD_SUCCESS(lt_mode_) \
+    if(lt_mode_) \
+        lt_tr_->add_success();
 
-#define LT_EV(__lt_a__, __lt_b__, __lt_op__, __lt_mode__) \
-    try \
-    { \
-        LT_OP(__lt_name__, (__lt_a__), (__lt_b__), __FILE__, __LINE__, __lt_op__, __lt_mode__); \
-        LT_ADD_SUCCESS(__lt_mode__) \
-    } \
-    LT_CATCH_ERRORS
+#define LT_EV(lt_a_, lt_b_, lt_op_, lt_mode_) \
+    do { \
+        try \
+        { \
+            LT_OP(lt_name_, (lt_a_), (lt_b_), __FILE__, __LINE__, lt_op_, lt_mode_); \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
 
-#define LT_SIMPLE_EV(__lt_val__, __lt_mode__) \
-    try \
-    { \
-        LT_SIMPLE_OP(__lt_name__, (__lt_val__), __FILE__, __LINE__, __lt_mode__); \
-        LT_ADD_SUCCESS(__lt_mode__) \
-    } \
-    LT_CATCH_ERRORS
+#define LT_SIMPLE_EV(lt_val_, lt_mode_) \
+    do { \
+        try \
+        { \
+            LT_SIMPLE_OP(lt_name_, (lt_val_), __FILE__, __LINE__, lt_mode_); \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
 
-#define LT_THROW_EV(__lt_operation__, __lt_mode__) \
-    try \
-    { \
-        LT_THROW_OP(__lt_name__, (__lt_operation__), __FILE__, __LINE__, __lt_mode__); \
-        LT_ADD_SUCCESS(__lt_mode__) \
-    } \
-    LT_CATCH_ERRORS
+#define LT_THROW_EV(lt_operation_, lt_mode_) \
+    do { \
+        try \
+        { \
+            LT_THROW_OP(lt_name_, (lt_operation_), __FILE__, __LINE__, lt_mode_); \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
 
-#define LT_NOTHROW_EV(__lt_operation__, __lt_mode__) \
-    try \
-    { \
-        LT_NOTHROW_OP(__lt_name__, (__lt_operation__), __FILE__, __LINE__, __lt_mode__); \
-        LT_ADD_SUCCESS(__lt_mode__) \
-    } \
-    LT_CATCH_ERRORS
+#define LT_NOTHROW_EV(lt_operation_, lt_mode_) \
+    do { \
+        try \
+        { \
+            LT_NOTHROW_OP(lt_name_, (lt_operation_), __FILE__, __LINE__, lt_mode_); \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
 
-#define LT_COLLEQ_EV(__lt_first_begin__, __lt_first_end__, __lt_second_begin__, __lt_mode__) \
-    try \
-    { \
-        LT_COLLEQ_OP(__lt_name__, (__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), __FILE__, __LINE__, __lt_mode__); \
-        LT_ADD_SUCCESS(__lt_mode__) \
-    } \
-    LT_CATCH_ERRORS
+#define LT_COLLECTION_EV(lt_expected_, lt_mode_, ...) \
+    do { \
+        try \
+        { \
+            if(littletest::detail::collections_equal(__VA_ARGS__) != (lt_expected_)) \
+            { \
+                std::stringstream lt_ss_; \
+                lt_ss_ << "(" << __FILE__ << ":" << __LINE__ << ") - error in " \
+                    << "\"" << lt_name_ << "\": collections are " \
+                    << ((lt_expected_) ? "different" : "equal"); \
+                LT_SWITCH_MODE(lt_mode_) \
+            } \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
 
-#define LT_COLLNEQ_EV(__lt_first_begin__, __lt_first_end__, __lt_second_begin__, __lt_mode__) \
-    try \
-    { \
-        LT_COLLNEQ_OP(__lt_name__, (__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), __FILE__, __LINE__, __lt_mode__); \
-        LT_ADD_SUCCESS(__lt_mode__) \
-    } \
-    LT_CATCH_ERRORS
+#define LT_WARN(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_WARN)
+#define LT_WARN_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_WARN)
+#define LT_WARN_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_WARN)
+#define LT_WARN_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_WARN)
+#define LT_WARN_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_WARN)
+#define LT_WARN_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_WARN)
+#define LT_WARN_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_WARN)
+#define LT_WARN_THROW(lt_operation_) LT_THROW_EV((lt_operation_), LT_MODE_WARN)
+#define LT_WARN_NOTHROW(lt_operation_) LT_NOTHROW_EV((lt_operation_), LT_MODE_WARN)
+#define LT_WARN_COLLECTIONS_EQ(...) LT_COLLECTION_EV(true, LT_MODE_WARN, __VA_ARGS__)
+#define LT_WARN_COLLECTIONS_NEQ(...) LT_COLLECTION_EV(false, LT_MODE_WARN, __VA_ARGS__)
 
-#define LT_WARN(__lt_val__) LT_SIMPLE_EV((__lt_val__), WARN)
-#define LT_WARN_EQ(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), !=, WARN)
-#define LT_WARN_NEQ(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), ==, WARN)
-#define LT_WARN_GT(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), <=, WARN)
-#define LT_WARN_GTE(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), <, WARN)
-#define LT_WARN_LT(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), >=, WARN)
-#define LT_WARN_LTE(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), >, WARN)
-#define LT_WARN_THROW(__lt_operation__) LT_THROW_EV((__lt_operation__), WARN)
-#define LT_WARN_NOTHROW(__lt_operation__) LT_NOTHROW_EV((__lt_operation__), WARN)
-#define LT_WARN_COLLECTIONS_EQ(__lt_first_begin__, __lt_first_end__, __lt_second_begin__) LT_COLLEQ_EV((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), WARN)
-#define LT_WARN_COLLECTIONS_NEQ(__lt_first_begin__, __lt_first_end__, __lt_second_begin__) LT_COLLNEQ_EV((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), WARN)
+#define LT_CHECK(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_CHECK)
+#define LT_CHECK_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_CHECK)
+#define LT_CHECK_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_CHECK)
+#define LT_CHECK_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_CHECK)
+#define LT_CHECK_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_CHECK)
+#define LT_CHECK_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_CHECK)
+#define LT_CHECK_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_CHECK)
+#define LT_CHECK_THROW(lt_operation_) LT_THROW_EV((lt_operation_), LT_MODE_CHECK)
+#define LT_CHECK_NOTHROW(lt_operation_) LT_NOTHROW_EV((lt_operation_), LT_MODE_CHECK)
+#define LT_CHECK_COLLECTIONS_EQ(...) LT_COLLECTION_EV(true, LT_MODE_CHECK, __VA_ARGS__)
+#define LT_CHECK_COLLECTIONS_NEQ(...) LT_COLLECTION_EV(false, LT_MODE_CHECK, __VA_ARGS__)
 
-#define LT_CHECK(__lt_val__) LT_SIMPLE_EV((__lt_val__), CHECK)
-#define LT_CHECK_EQ(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), !=, CHECK)
-#define LT_CHECK_NEQ(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), ==, CHECK)
-#define LT_CHECK_GT(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), <=, CHECK)
-#define LT_CHECK_GTE(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), <, CHECK)
-#define LT_CHECK_LT(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), >=, CHECK)
-#define LT_CHECK_LTE(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), >, CHECK)
-#define LT_CHECK_THROW(__lt_operation__) LT_THROW_EV((__lt_operation__), CHECK)
-#define LT_CHECK_NOTHROW(__lt_operation__) LT_NOTHROW_EV((__lt_operation__), CHECK)
-#define LT_CHECK_COLLECTIONS_EQ(__lt_first_begin__, __lt_first_end__, __lt_second_begin__) LT_COLLEQ_EV((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), CHECK)
-#define LT_CHECK_COLLECTIONS_NEQ(__lt_first_begin__, __lt_first_end__, __lt_second_begin__) LT_COLLNEQ_EV((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), CHECK)
+#define LT_ASSERT(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_ASSERT)
+#define LT_ASSERT_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_ASSERT)
+#define LT_ASSERT_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_ASSERT)
+#define LT_ASSERT_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_ASSERT)
+#define LT_ASSERT_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_ASSERT)
+#define LT_ASSERT_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_ASSERT)
+#define LT_ASSERT_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_ASSERT)
+#define LT_ASSERT_THROW(lt_operation_) LT_THROW_EV((lt_operation_), LT_MODE_ASSERT)
+#define LT_ASSERT_NOTHROW(lt_operation_) LT_NOTHROW_EV((lt_operation_), LT_MODE_ASSERT)
+#define LT_ASSERT_COLLECTIONS_EQ(...) LT_COLLECTION_EV(true, LT_MODE_ASSERT, __VA_ARGS__)
+#define LT_ASSERT_COLLECTIONS_NEQ(...) LT_COLLECTION_EV(false, LT_MODE_ASSERT, __VA_ARGS__)
 
-#define LT_ASSERT(__lt_val__) LT_SIMPLE_EV((__lt_val__), ASSERT)
-#define LT_ASSERT_EQ(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), !=, ASSERT)
-#define LT_ASSERT_NEQ(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), ==, ASSERT)
-#define LT_ASSERT_GT(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), <=, ASSERT)
-#define LT_ASSERT_GTE(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), <, ASSERT)
-#define LT_ASSERT_LT(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), >=, ASSERT)
-#define LT_ASSERT_LTE(__lt_a__, __lt_b__) LT_EV((__lt_a__), (__lt_b__), >, ASSERT)
-#define LT_ASSERT_THROW(__lt_operation__) LT_THROW_EV((__lt_operation__), ASSERT)
-#define LT_ASSERT_NOTHROW(__lt_operation__) LT_NOTHROW_EV((__lt_operation__), ASSERT)
-#define LT_ASSERT_COLLECTIONS_EQ(__lt_first_begin__, __lt_first_end__, __lt_second_begin__) LT_COLLEQ_EV((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), ASSERT)
-#define LT_ASSERT_COLLECTIONS_NEQ(__lt_first_begin__, __lt_first_end__, __lt_second_begin__) LT_COLLNEQ_EV((__lt_first_begin__), (__lt_first_end__), (__lt_second_begin__), ASSERT)
-
-#define LT_FAIL(__lt_message__) \
-    std::cout << "[ASSERT FAILURE] (" << __FILE__ << ":" << __LINE__ << ") - error in " << "\"" << (__lt_name__) << "\": " << (__lt_message__) << std::endl; \
-    __lt_tr__->add_failure(); \
-    throw littletest::assert_unattended("");
+#define LT_FAIL(lt_message_) \
+    do { \
+        std::cout << "[ASSERT FAILURE] (" << __FILE__ << ":" << __LINE__ << ") - error in " << "\"" << (lt_name_) << "\": " << (lt_message_) << std::endl; \
+        lt_tr_->add_failure(); \
+        throw littletest::assert_unattended(""); \
+    } while(false)
 
 namespace littletest
 {
@@ -362,6 +333,9 @@ template <class suite_impl>
 class suite
 {
     public:
+        void set_up() {}
+        void tear_down() {}
+
         void suite_set_up()
         {
             static_cast<suite_impl*>(this)->set_up();
@@ -376,15 +350,46 @@ class suite
         suite(const suite<suite_impl>& s) { }
 };
 
-double calculate_duration(timeval* before, timeval* after)
+typedef std::chrono::steady_clock clock;
+
+inline double calculate_duration(const clock::time_point& before, const clock::time_point& after)
 {
-    return ((after->tv_sec * 1000 + (after->tv_usec / 1000.0)) -
-           (before->tv_sec * 1000 + (before->tv_usec / 1000.0)));
+    return std::chrono::duration<double, std::milli>(after - before).count();
+}
+
+namespace detail
+{
+    template <class First, class Second>
+    bool collections_equal(First first, First last, Second second)
+    {
+        // Legacy overload: the second range must contain at least as many elements.
+        return std::equal(first, last, second);
+    }
+
+    template <class First, class Second>
+    bool collections_equal(First first, First last, Second second, Second second_last)
+    {
+        for(; first != last && second != second_last; ++first, ++second)
+            if(!(*first == *second))
+                return false;
+        return first == last && second == second_last;
+    }
+
+    inline bool& environment_failed()
+    {
+        // Sticky across runner summaries; reset only when the environment begins.
+        static bool failed = false;
+        return failed;
+    }
 }
 
 class test_base;
 
-std::vector<test_base*> auto_test_vector;
+inline std::vector<test_base*>& auto_test_vector()
+{
+    static std::vector<test_base*> tests;
+    return tests;
+}
 
 class test_runner
 {
@@ -407,8 +412,10 @@ class test_runner
         {
             std::cout << "Running test (" <<
                 test_counter << "): " <<
-                t->__lt_name__ << std::endl;
+                t->lt_name_ << std::endl;
 
+            last_checkpoint_file.clear();
+            last_checkpoint_line = -1;
             t->run_test(this);
 
             test_counter++;
@@ -434,7 +441,7 @@ class test_runner
             test_counter = 1;
             success_counter = 0;
             failures_counter = 0;
-            good_time_total = 0.0,
+            good_time_total = 0.0;
             total_set_up_time = 0.0;
             total_tear_down_time = 0.0;
             total_time = 0.0;
@@ -449,8 +456,9 @@ class test_runner
             std::cout << "-> " << failures_counter << " failures" << std::endl;
             std::cout << "Total run time: " << total_time << " ms"<< std::endl;
             std::cout << "Total time spent in tests: " << good_time_total << " ms" << std::endl;
-            std::cout << "Average set up time: " << (total_set_up_time / test_counter) << " ms" << std::endl;
-            std::cout << "Average tear down time: " << (total_tear_down_time / test_counter) << " ms" << std::endl;
+            const int completed = test_counter - 1;
+            std::cout << "Average set up time: " << (completed ? total_set_up_time / completed : 0.0) << " ms" << std::endl;
+            std::cout << "Average tear down time: " << (completed ? total_tear_down_time / completed : 0.0) << " ms" << std::endl;
             int to_ret = failures_counter;
             clear_runner();
             return to_ret;
@@ -459,6 +467,7 @@ class test_runner
         void add_failure()
         {
             failures_counter++;
+            detail::environment_failed() = true;
         }
 
         void add_success()
@@ -538,12 +547,23 @@ class test_runner
 class test_base
 {
     public:
-        const char* __lt_name__;
+        const char* lt_name_;
         virtual void run_test(test_runner* tr) { }
         virtual void operator()() { }
 };
 
-test_runner auto_test_runner;
+inline test_runner& auto_test_runner()
+{
+    static test_runner runner;
+    return runner;
+}
+
+inline int run_auto_tests()
+{
+    for(test_base* t : auto_test_vector())
+        auto_test_runner()(t);
+    return auto_test_runner()();
+}
 
 template <class test_impl>
 class test : public test_base
@@ -551,30 +571,33 @@ class test : public test_base
         virtual void run_test(test_runner* tr)
         {
             double set_up_duration = 0.0, tear_down_duration = 0.0, test_duration = 0.0;
-            timeval before, after;
+            clock::time_point before, after;
+            bool setup_succeeded = false;
+            before = clock::now();
             try
             {
-                gettimeofday(&before, NULL);
                 static_cast<test_impl* >(this)->suite_set_up();
-                gettimeofday(&after, NULL);
-                set_up_duration = calculate_duration(&before, &after);
-                tr->add_set_up_time(set_up_duration);
+                setup_succeeded = true;
             }
             catch(std::exception& e)
             {
-                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " set up" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->lt_name_ << " set up" << std::endl;
                 std::cout << e.what() << std::endl;
                 tr->add_failure();
             }
             catch(...)
             {
-                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " set up" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->lt_name_ << " set up" << std::endl;
                 tr->add_failure();
             }
+            after = clock::now();
+            set_up_duration = calculate_duration(before, after);
+            tr->add_set_up_time(set_up_duration);
+            before = clock::now();
             try
             {
-                gettimeofday(&before, NULL);
-                (*static_cast<test_impl*>(this))(tr);
+                if(setup_succeeded)
+                    (*static_cast<test_impl*>(this))(tr);
             }
             catch(assert_unattended& au)
             {
@@ -582,7 +605,7 @@ class test : public test_base
             }
             catch(std::exception& e)
             {
-                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " run" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->lt_name_ << " run" << std::endl;
                 std::cout << e.what() << std::endl;
                 if(tr->last_checkpoint_line != -1)
                     std::cout << "Last checkpoint in " << tr->last_checkpoint_file << ":" << tr->last_checkpoint_line << std::endl;
@@ -590,38 +613,38 @@ class test : public test_base
             }
             catch(...)
             {
-                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " run" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->lt_name_ << " run" << std::endl;
                 if(tr->last_checkpoint_line != -1)
                     std::cout << "Last checkpoint in " << tr->last_checkpoint_file << ":" << tr->last_checkpoint_line << std::endl;
                 tr->add_failure();
             }
-            gettimeofday(&after, NULL);
+            after = clock::now();
 
-            test_duration = calculate_duration(&before, &after);
+            test_duration = calculate_duration(before, after);
 
             tr->add_good_time(test_duration);
 
-            std::cout << "- Time spent during \"" << static_cast<test_impl* >(this)->__lt_name__ << "\": " << test_duration << " ms"<< std::endl;
+            std::cout << "- Time spent during \"" << static_cast<test_impl* >(this)->lt_name_ << "\": " << test_duration << " ms"<< std::endl;
 
             try
             {
-                gettimeofday(&before, NULL);
+                before = clock::now();
                 static_cast<test_impl* >(this)->suite_tear_down();
-                gettimeofday(&after, NULL);
-                tear_down_duration = calculate_duration(&before, &after);
-                tr->add_tear_down_time(tear_down_duration);
             }
             catch(std::exception& e)
             {
-                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " tear down" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->lt_name_ << " tear down" << std::endl;
                 std::cout << e.what() << std::endl;
                 tr->add_failure();
             }
             catch(...)
             {
-                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->__lt_name__ << " tear down" << std::endl;
+                std::cout << "[FAILURE] Exception during " << static_cast<test_impl* >(this)->lt_name_ << " tear down" << std::endl;
                 tr->add_failure();
             }
+            after = clock::now();
+            tear_down_duration = calculate_duration(before, after);
+            tr->add_tear_down_time(tear_down_duration);
             double total = set_up_duration + test_duration + tear_down_duration;
             tr->add_total_time(total);
         }
@@ -634,4 +657,4 @@ class test : public test_base
 
 }
 
-#endif //_LITTLETEST_HPP_
+#endif //LITTLETEST_HPP_INCLUDED
