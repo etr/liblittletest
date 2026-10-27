@@ -184,3 +184,8 @@ internal identifiers no longer use reserved double underscores. The generic
 `WARN`, `CHECK`, and `ASSERT` macros have been replaced with `LT_MODE_WARN`,
 `LT_MODE_CHECK`, and `LT_MODE_ASSERT`. Normal use through the documented test and
 assertion macros requires no changes.
+
+## License
+
+Copyright (c) 2012-2026 Sebastiano Merlino. Licensed under the [MIT License](LICENSE).
+The full license notice is also included in the header for standalone distribution.
