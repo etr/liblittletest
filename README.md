@@ -4,6 +4,13 @@ A complete unit testing framework in a header
 
 liblittletest is an easy to use all-in-an-header testing framework; all you have to do in order to use it is to include the header in your code.
 
+Requires C++11 or later and the standard library. Include `src/littletest.hpp`;
+there is no library to build or link and no implementation macro to define.
+For example: `c++ -std=c++11 -Isrc tests.cpp -o tests`.
+The header can be included in multiple source files in the same test executable.
+Define the test environment (which supplies `main`) in exactly one source file,
+and give tests unique names within their namespace.
+
 # How to use
 ## Preparing Tests
 ### Suites
@@ -26,6 +33,10 @@ A suite can be defined in this way:
 
 It is possible to define a suite without specifying set_up or tear_down methods. 
 set_up and tear_down methods are called respectively before and after each test.
+If `set_up()` throws, the failure is recorded and the test body is skipped.
+`tear_down()` is still attempted, including after a failed setup or assertion, so
+it must tolerate partially initialized state. Exceptions from the test body or
+cleanup are also recorded as failures, and later tests continue running.
 
 ## Running Tests (the manual way)
 ### Tests
@@ -40,7 +51,7 @@ As you can see, the suite_name is the first parameter specified and so the test 
 ### Runners and Environment
 Tests are performed by runners. A runner is an object that not only runs tests but also collects all informations about successes and failures and also about timings. Is up to the runner to execute set_up and tear_down methods.
 
-Each runner is specialized to work with tests of a particular suite and it is not possible with a single runner to execute tests of different suites.
+One runner can execute tests from different suites.
 
 A runner can live only inside an environment.
 
@@ -50,6 +61,20 @@ A runner can live only inside an environment.
     LT_END_TEST_ENV()
 
 In the previous example a test environment is created and a runner is initialized. The three tests, test_1, test_2 and test_3 are registered and the runner is executed.
+
+Tests execute as they are passed to the runner; the final `()` prints a summary,
+returns its failure count, and clears the runner's counters. The environment
+remembers failures across summaries and runners and returns `EXIT_FAILURE` if
+any check, assertion, or unexpected exception failed; otherwise it returns
+`EXIT_SUCCESS`. Warnings do not affect the exit status. Automatic environments
+use the same rule, including when the failure count is a multiple of 256.
+
+If you write your own `main()` instead, normalize the summary result explicitly:
+
+    int failures = runner();
+    return failures ? EXIT_FAILURE : EXIT_SUCCESS;
+
+Timings use `std::chrono::steady_clock` and are reported in milliseconds.
 
 ## Running Tests (the automatic way)
 ### Tests
@@ -82,8 +107,8 @@ Checks are simple controls. A failed check represents a failure for the runner a
 * LT_CHECK_LTE(a, b) : the check succeeds if a is lessert or equal to b;
 * LT_CHECK_THROW(expr) : the check succeeds if expr raises an exception;
 * LT_CHECK_NOTHROW(expr) : the check succeeds if expr does not raise an exception;
-* LT_CHECK_COLLECTIONS_EQ(first1, last1, first2) : the check succeeds if collections a and b are equal;
-* LT_CHECK_COLLECTIONS_NEQ(first1, last1, first2) : the check succeeds if collections a and b are not equal;
+* LT_CHECK_COLLECTIONS_EQ(first1, last1, first2, last2) : the check succeeds if both ranges have equal lengths and elements;
+* LT_CHECK_COLLECTIONS_NEQ(first1, last1, first2, last2) : the check succeeds if the ranges differ in length or elements;
 
 **Warnings**
 
@@ -97,8 +122,8 @@ Warnings are used to signal that maybe a problem (but not that the test failed).
 * LT_WARN_LTE(a, b) : the check succeeds if a is lessert or equal to b;
 * LT_WARN_THROW(expr) : the check succeeds if expr raises an exception;
 * LT_WARN_NOTHROW(expr) : the check succeeds if expr does not raise an exception;
-* LT_WARN_COLLECTIONS_EQ(first1, last1, first2) : the check succeeds if collections a and b are equal;
-* LT_WARN_COLLECTIONS_NEQ(first1, last1, first2) : the check succeeds if collections a and b are not equal;
+* LT_WARN_COLLECTIONS_EQ(first1, last1, first2, last2) : the warning succeeds if both ranges have equal lengths and elements;
+* LT_WARN_COLLECTIONS_NEQ(first1, last1, first2, last2) : the warning succeeds if the ranges differ in length or elements;
 
 **Asserts**
 
@@ -112,8 +137,20 @@ Asserts are serious controls that need to be satisfied in order to continue a te
 * LT_ASSERT_LTE(a, b) : the check succeeds if a is lessert or equal to b;
 * LT_ASSERT_THROW(expr) : the check succeeds if expr raises an exception;
 * LT_ASSERT_NOTHROW(expr) : the check succeeds if expr does not raise an exception;
-* LT_ASSERT_COLLECTIONS_EQ(first1, last1, first2) : the check succeeds if collections a and b are equal;
-* LT_ASSERT_COLLECTIONS_NEQ(first1, last1, first2) : the check succeeds if collections a and b are not equal;
+* LT_ASSERT_COLLECTIONS_EQ(first1, last1, first2, last2) : the assertion succeeds if both ranges have equal lengths and elements;
+* LT_ASSERT_COLLECTIONS_NEQ(first1, last1, first2, last2) : the assertion succeeds if the ranges differ in length or elements;
+
+All collection macros also accept the original three-iterator form
+`(first1, last1, first2)`. That form compares the first range against an equally
+long prefix starting at `first2`: the caller must ensure that the second range
+contains at least that many elements. It cannot check the second range's length.
+Prefer four iterators to compare complete collections safely. Both forms support
+input iterators; the bounded form walks each range once.
+
+Comparison operands are evaluated once, from left to right, and bound by const
+reference for comparison and diagnostics. For example, a failed
+`LT_CHECK_EQ(++i, 0)` increments `i` once. Ordered comparisons with `NaN` fail.
+Assertion macros can be used as ordinary statements in `if`/`else` branches.
 
 ### Checkpoints
 Sometimes a code may generate uncaught exceptions that the executing runner catches and reports. In these cases may be useful to know which was the last checkpoint the executor passed through.
@@ -128,3 +165,22 @@ It maybe useful sometimes to generate a failure manually. This is always possibl
     LT_FAIL(message)
 
 This will generate a failure equal to that emitted by a failed assert printing out the specified message.
+
+## Developing liblittletest
+
+Run the regression suite with Python 3 and a C++ compiler:
+
+    python3 tests/test_littletest.py -v
+
+Set `CXX` to choose the compiler and `CXXFLAGS` to add compiler/linker flags, for
+example `CXX=clang++ CXXFLAGS='-fsanitize=address,undefined' python3 tests/test_littletest.py`.
+The suite compiles temporary executables, checks their diagnostics and exit
+status, and verifies automatic registration across source files. Python is only
+needed to run these development checks; users need only the header.
+
+Compatibility notes: C++11 is now the minimum. Internal registry/runner globals
+are now inline accessors (`auto_test_vector()` and `auto_test_runner()`), and
+internal identifiers no longer use reserved double underscores. The generic
+`WARN`, `CHECK`, and `ASSERT` macros have been replaced with `LT_MODE_WARN`,
+`LT_MODE_CHECK`, and `LT_MODE_ASSERT`. Normal use through the documented test and
+assertion macros requires no changes.
