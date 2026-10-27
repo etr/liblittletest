@@ -24,8 +24,8 @@ LT_END_AUTO_TEST_ENV()
 '''
 
 
-class HeaderTests(unittest.TestCase):
-    def compile_and_run(self, *sources):
+class HeaderHarness(unittest.TestCase):
+    def compile_and_run(self, *sources, args=()):
         with tempfile.TemporaryDirectory(prefix="littletest-") as directory:
             directory = Path(directory)
             paths = []
@@ -41,16 +41,18 @@ class HeaderTests(unittest.TestCase):
                        + ["-o", str(executable)])
             compiled = subprocess.run(command, capture_output=True, text=True, timeout=60)
             self.assertEqual(compiled.returncode, 0, compiled.stdout + compiled.stderr)
-            result = subprocess.run([str(executable)], capture_output=True,
+            result = subprocess.run([str(executable)] + list(args), capture_output=True,
                                     text=True, timeout=10)
             self.assertNotIn("Sanitizer", result.stderr, result.stderr)
             self.assertNotIn("runtime error:", result.stderr, result.stderr)
             return result
 
-    def run_test_body(self, body, main=AUTO_MAIN, includes=""):
+    def run_test_body(self, body, main=AUTO_MAIN, includes="", args=()):
         return self.compile_and_run(includes + SUITE + "LT_BEGIN_TEST(S,T)\n"
-                                    + body + "\nLT_END_TEST(T)\n" + main)
+                                    + body + "\nLT_END_TEST(T)\n" + main, args=args)
 
+
+class HeaderTests(HeaderHarness):
     def test_registry_is_shared_across_translation_units(self):
         first = SUITE + '''
 LT_BEGIN_AUTO_TEST(S,First)

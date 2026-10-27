@@ -17,7 +17,7 @@ jobs:
       CXXFLAGS: -std=${{ matrix.standard }}
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tests/test_littletest.py -v
+      - run: python3 -B -m unittest discover -s tests -v
 
   sanitizers:
     runs-on: ubuntu-latest
@@ -26,4 +26,4 @@ jobs:
       CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -g
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tests/test_littletest.py -v
+      - run: python3 -B -m unittest discover -s tests -v
