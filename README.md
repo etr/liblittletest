@@ -16,6 +16,10 @@ or see the [release notes](https://github.com/etr/liblittletest/releases/tag/v2.
 `LT_VERSION` is the numeric major/minor version (`2.0`);
 `LT_VERSION_STRING` contains the full version (`"2.0.0"`).
 
+The diagnostics, command-line options, typed exception checks, and near comparisons
+described below are unreleased additions in the development header. The pinned
+v2.0.0 download above predates these additions.
+
 # How to use
 ## Preparing Tests
 ### Suites
@@ -98,6 +102,31 @@ Also in this case, tests are executed by a runner and inside an environment, but
         AUTORUN_TESTS()
     LT_END_AUTO_TEST_ENV()
 
+### Listing and selecting tests (unreleased)
+
+Both manual and automatic environments accept these command-line options without
+changing their macro call sites:
+
+    ./tests --list
+    ./tests --filter "parser*"
+    ./tests --list --filter="parser?"
+
+Patterns match the entire test name, are case-sensitive, and support `*` for any
+number of characters and `?` for one character. Other characters are literal;
+there is no regular-expression or bracket syntax. Quote patterns to prevent the
+shell from expanding them. Missing, empty, repeated, or unknown options produce a
+usage error; repeated `--list` is harmless.
+
+`--list` prints registered test names and exits before executing the environment
+body or any fixtures or tests. Define tests at namespace scope. In a manual
+environment, listing shows all registered tests, while execution still runs only
+the tests explicitly passed to its runners, in their original order. A filter can
+remove tests from that selection but cannot add others. A supplied filter that
+selects no tests to execute (or no names to list) returns a failure status.
+Without options, existing execution behavior is preserved, including successful
+empty environments. Hand-written `main()` functions do not parse these options
+automatically.
+
 ## Tests Content
 ### Controls
 **Checks**
@@ -157,6 +186,55 @@ reference for comparison and diagnostics. For example, a failed
 `LT_CHECK_EQ(++i, 0)` increments `i` once. Ordered comparisons with `NaN` fail.
 Assertion macros can be used as ordinary statements in `if`/`else` branches.
 
+### Failure details and optional messages (unreleased)
+
+Boolean failures include their source expression. Comparison failures include
+both operand expressions and their actual values, in addition to the test name,
+file, and line. Equality-comparable types need not define `operator<<`: values
+without stream insertion are displayed as `<unprintable>`. Operand evaluation,
+reference binding, and temporary lifetimes follow the existing comparison rules.
+
+Add context to a boolean check with `LT_CHECK_MSG(condition, message)`,
+`LT_WARN_MSG(condition, message)`, or `LT_ASSERT_MSG(condition, message)`:
+
+    LT_CHECK_MSG(record.valid(), "while parsing record 42");
+
+The condition is evaluated once. The message expression is evaluated and printed
+only when the condition is false; it can be a string or another streamable value.
+Messages without stream insertion use the same `<unprintable>` fallback.
+These macros preserve the usual warning, continuing check, and aborting assertion
+behavior.
+
+### Expected exception types (unreleased)
+
+    LT_CHECK_THROW_AS(parse(input), std::invalid_argument);
+
+`LT_CHECK_THROW_AS(expression, Type)`, `LT_WARN_THROW_AS`, and `LT_ASSERT_THROW_AS`
+evaluate the expression once and match exceptions using normal C++ catch rules:
+a derived exception matches an expected base class, and non-class exceptions
+such as `int` are supported. Use a type alias when the type contains commas.
+Missing exceptions and unexpected types produce distinct failures; an unexpected
+exception is consumed so a failed check can continue. Warnings remain nonfatal,
+and failed assertions stop the test while still allowing fixture cleanup.
+The original `*_THROW` macros continue to accept any exception type.
+
+### Floating-point comparisons (unreleased)
+
+    LT_CHECK_NEAR(actual, expected, 0.001);
+
+`LT_CHECK_NEAR(actual, expected, tolerance)`, `LT_WARN_NEAR`, and `LT_ASSERT_NEAR`
+use an explicit absolute tolerance: the absolute difference must be at most the
+tolerance. Arguments must be arithmetic values, are evaluated once in the order
+actual, expected, tolerance, and are converted to `long double` for comparison.
+This avoids integral subtraction overflow; comparisons have the precision of
+`long double` on the target platform.
+
+The tolerance must be finite and nonnegative, even when the values are equal.
+NaN in either value or the tolerance always fails. Equal infinities of the same
+sign pass; unequal infinities and finite/infinite pairs fail. Zero tolerance
+requires equality, and positive and negative zero compare equal. Failures show
+the operand expressions, values, and tolerance.
+
 ### Checkpoints
 Sometimes a code may generate uncaught exceptions that the executing runner catches and reports. In these cases may be useful to know which was the last checkpoint the executor passed through.
 
@@ -175,10 +253,10 @@ This will generate a failure equal to that emitted by a failed assert printing o
 
 Run the regression suite with Python 3 and a C++ compiler:
 
-    python3 tests/test_littletest.py -v
+    python3 -B -m unittest discover -s tests -v
 
 Set `CXX` to choose the compiler and `CXXFLAGS` to add compiler/linker flags, for
-example `CXX=clang++ CXXFLAGS='-fsanitize=address,undefined' python3 tests/test_littletest.py`.
+example `CXX=clang++ CXXFLAGS='-fsanitize=address,undefined' python3 -B -m unittest discover -s tests -v`.
 The suite compiles temporary executables, checks their diagnostics and exit
 status, and verifies automatic registration across source files. Python is only
 needed to run these development checks; users need only the header.

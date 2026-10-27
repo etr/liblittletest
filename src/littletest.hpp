@@ -22,8 +22,6 @@
     SOFTWARE.
 */
 
-//TODO: personalized messages
-
 #ifndef LITTLETEST_HPP_INCLUDED
 #define LITTLETEST_HPP_INCLUDED
 
@@ -32,8 +30,10 @@
 #include <sstream>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <exception>
+#include <type_traits>
 #include <vector>
 
 #define LT_VERSION 2.0
@@ -43,11 +43,12 @@
 #define LT_MODE_CHECK 1
 #define LT_MODE_ASSERT 2
 
-#define LT_BEGIN_TEST_ENV() int main() { \
-    littletest::detail::environment_failed() = false;
+#define LT_BEGIN_TEST_ENV() int main(int lt_argc_, char** lt_argv_) { \
+    const int lt_environment_status_ = littletest::detail::begin_environment(lt_argc_, lt_argv_); \
+    if(lt_environment_status_ != -1) return lt_environment_status_;
 
 #define LT_END_TEST_ENV() \
-    return littletest::detail::environment_failed() ? EXIT_FAILURE : EXIT_SUCCESS; \
+    return littletest::detail::end_environment(); \
     }
 
 #define LT_BEGIN_AUTO_TEST_ENV() LT_BEGIN_TEST_ENV()
@@ -103,12 +104,11 @@
                 throw littletest::assert_unattended(lt_ss_.str()); \
         }
 
-#define LT_SIMPLE_OP(lt_name_, lt_val_, lt_file_, lt_line_, lt_mode_) \
+#define LT_SIMPLE_OP(lt_name_, lt_val_, lt_file_, lt_line_, lt_mode_, lt_expression_) \
     if(!((lt_val_))) \
     { \
-        std::stringstream lt_ss_; \
-        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\""; \
-        LT_SWITCH_MODE(lt_mode_) \
+        littletest::detail::raise_failure(lt_mode_, \
+            littletest::detail::simple_failure(lt_name_, lt_file_, lt_line_, lt_expression_)); \
     }
 
 #define LT_THROW_OP(lt_name_, lt_operation_, lt_file_, lt_line_, lt_mode_) \
@@ -146,19 +146,19 @@
 #define LT_DETAIL_JOIN(lt_prefix_, lt_suffix_) LT_DETAIL_JOIN_IMPL(lt_prefix_, lt_suffix_)
 
 // Generate operand bindings per invocation without changing evaluation or lifetime.
-#define LT_OP(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_) \
-    LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, \
+#define LT_OP(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, lt_a_expression_, lt_b_expression_) \
+    LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, lt_a_expression_, lt_b_expression_, \
         LT_DETAIL_JOIN(lt_comparison_left_at_line_, __LINE__), \
         LT_DETAIL_JOIN(lt_comparison_right_at_line_, __LINE__))
 
-#define LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, lt_left_local_, lt_right_local_) \
+#define LT_OP_IMPL(lt_name_, lt_a_, lt_b_, lt_file_, lt_line_, lt_op_, lt_mode_, lt_a_expression_, lt_b_expression_, lt_left_local_, lt_right_local_) \
     const auto& lt_left_local_ = (lt_a_); \
     const auto& lt_right_local_ = (lt_b_); \
     if(!(lt_left_local_ lt_op_ lt_right_local_)) \
     { \
-        std::stringstream lt_ss_; \
-        lt_ss_ << "(" << lt_file_ << ":" << lt_line_ << ") - error in " << "\"" << lt_name_ << "\": " << lt_left_local_ << " " << #lt_op_ << " " << lt_right_local_; \
-        LT_SWITCH_MODE(lt_mode_) \
+        littletest::detail::raise_failure(lt_mode_, \
+            littletest::detail::comparison_failure(lt_name_, lt_file_, lt_line_, \
+                lt_a_expression_, lt_b_expression_, #lt_op_, lt_left_local_, lt_right_local_)); \
     }
 
 #define LT_CATCH_ERRORS \
@@ -182,21 +182,21 @@
     if(lt_mode_) \
         lt_tr_->add_success();
 
-#define LT_EV(lt_a_, lt_b_, lt_op_, lt_mode_) \
+#define LT_EV(lt_a_, lt_b_, lt_op_, lt_mode_, lt_a_expression_, lt_b_expression_) \
     do { \
         try \
         { \
-            LT_OP(lt_name_, (lt_a_), (lt_b_), __FILE__, __LINE__, lt_op_, lt_mode_); \
+            LT_OP(lt_name_, (lt_a_), (lt_b_), __FILE__, __LINE__, lt_op_, lt_mode_, lt_a_expression_, lt_b_expression_); \
             LT_ADD_SUCCESS(lt_mode_) \
         } \
         LT_CATCH_ERRORS \
     } while(false)
 
-#define LT_SIMPLE_EV(lt_val_, lt_mode_) \
+#define LT_SIMPLE_EV(lt_val_, lt_mode_, lt_expression_) \
     do { \
         try \
         { \
-            LT_SIMPLE_OP(lt_name_, (lt_val_), __FILE__, __LINE__, lt_mode_); \
+            LT_SIMPLE_OP(lt_name_, (lt_val_), __FILE__, __LINE__, lt_mode_, lt_expression_); \
             LT_ADD_SUCCESS(lt_mode_) \
         } \
         LT_CATCH_ERRORS \
@@ -239,41 +239,96 @@
         LT_CATCH_ERRORS \
     } while(false)
 
-#define LT_WARN(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_WARN)
-#define LT_WARN_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_WARN)
-#define LT_WARN_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_WARN)
-#define LT_WARN_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_WARN)
-#define LT_WARN_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_WARN)
-#define LT_WARN_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_WARN)
-#define LT_WARN_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_WARN)
+#define LT_WARN(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_WARN, #lt_val_)
+#define LT_WARN_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_WARN, #lt_a_, #lt_b_)
+#define LT_WARN_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_WARN, #lt_a_, #lt_b_)
+#define LT_WARN_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_WARN, #lt_a_, #lt_b_)
+#define LT_WARN_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_WARN, #lt_a_, #lt_b_)
+#define LT_WARN_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_WARN, #lt_a_, #lt_b_)
+#define LT_WARN_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_WARN, #lt_a_, #lt_b_)
 #define LT_WARN_THROW(lt_operation_) LT_THROW_EV((lt_operation_), LT_MODE_WARN)
 #define LT_WARN_NOTHROW(lt_operation_) LT_NOTHROW_EV((lt_operation_), LT_MODE_WARN)
 #define LT_WARN_COLLECTIONS_EQ(...) LT_COLLECTION_EV(true, LT_MODE_WARN, __VA_ARGS__)
 #define LT_WARN_COLLECTIONS_NEQ(...) LT_COLLECTION_EV(false, LT_MODE_WARN, __VA_ARGS__)
 
-#define LT_CHECK(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_CHECK)
-#define LT_CHECK_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_CHECK)
-#define LT_CHECK_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_CHECK)
-#define LT_CHECK_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_CHECK)
-#define LT_CHECK_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_CHECK)
-#define LT_CHECK_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_CHECK)
-#define LT_CHECK_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_CHECK)
+#define LT_CHECK(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_CHECK, #lt_val_)
+#define LT_CHECK_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_CHECK, #lt_a_, #lt_b_)
+#define LT_CHECK_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_CHECK, #lt_a_, #lt_b_)
+#define LT_CHECK_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_CHECK, #lt_a_, #lt_b_)
+#define LT_CHECK_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_CHECK, #lt_a_, #lt_b_)
+#define LT_CHECK_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_CHECK, #lt_a_, #lt_b_)
+#define LT_CHECK_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_CHECK, #lt_a_, #lt_b_)
 #define LT_CHECK_THROW(lt_operation_) LT_THROW_EV((lt_operation_), LT_MODE_CHECK)
 #define LT_CHECK_NOTHROW(lt_operation_) LT_NOTHROW_EV((lt_operation_), LT_MODE_CHECK)
 #define LT_CHECK_COLLECTIONS_EQ(...) LT_COLLECTION_EV(true, LT_MODE_CHECK, __VA_ARGS__)
 #define LT_CHECK_COLLECTIONS_NEQ(...) LT_COLLECTION_EV(false, LT_MODE_CHECK, __VA_ARGS__)
 
-#define LT_ASSERT(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_ASSERT)
-#define LT_ASSERT_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_ASSERT)
-#define LT_ASSERT_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_ASSERT)
-#define LT_ASSERT_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_ASSERT)
-#define LT_ASSERT_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_ASSERT)
-#define LT_ASSERT_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_ASSERT)
-#define LT_ASSERT_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_ASSERT)
+#define LT_ASSERT(lt_val_) LT_SIMPLE_EV((lt_val_), LT_MODE_ASSERT, #lt_val_)
+#define LT_ASSERT_EQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), ==, LT_MODE_ASSERT, #lt_a_, #lt_b_)
+#define LT_ASSERT_NEQ(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), !=, LT_MODE_ASSERT, #lt_a_, #lt_b_)
+#define LT_ASSERT_GT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >, LT_MODE_ASSERT, #lt_a_, #lt_b_)
+#define LT_ASSERT_GTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), >=, LT_MODE_ASSERT, #lt_a_, #lt_b_)
+#define LT_ASSERT_LT(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <, LT_MODE_ASSERT, #lt_a_, #lt_b_)
+#define LT_ASSERT_LTE(lt_a_, lt_b_) LT_EV((lt_a_), (lt_b_), <=, LT_MODE_ASSERT, #lt_a_, #lt_b_)
 #define LT_ASSERT_THROW(lt_operation_) LT_THROW_EV((lt_operation_), LT_MODE_ASSERT)
 #define LT_ASSERT_NOTHROW(lt_operation_) LT_NOTHROW_EV((lt_operation_), LT_MODE_ASSERT)
 #define LT_ASSERT_COLLECTIONS_EQ(...) LT_COLLECTION_EV(true, LT_MODE_ASSERT, __VA_ARGS__)
 #define LT_ASSERT_COLLECTIONS_NEQ(...) LT_COLLECTION_EV(false, LT_MODE_ASSERT, __VA_ARGS__)
+
+#define LT_MSG_EV(lt_val_, lt_message_, lt_mode_, lt_expression_) \
+    do { \
+        try \
+        { \
+            if(!(lt_val_)) \
+                littletest::detail::raise_failure(lt_mode_, \
+                    littletest::detail::simple_failure(lt_name_, __FILE__, __LINE__, lt_expression_, (lt_message_))); \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
+
+#define LT_THROW_AS_EV(lt_operation_, lt_type_, lt_mode_, lt_expression_, lt_type_name_) \
+    do { \
+        try \
+        { \
+            littletest::detail::require_throw_as<lt_type_>([&]() { (void)(lt_operation_); }, \
+                lt_name_, __FILE__, __LINE__, lt_mode_, lt_expression_, lt_type_name_); \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
+
+#define LT_NEAR_EV(lt_actual_, lt_expected_, lt_tolerance_, lt_mode_, lt_a_expression_, lt_b_expression_, lt_t_expression_) \
+    LT_NEAR_IMPL(lt_actual_, lt_expected_, lt_tolerance_, lt_mode_, lt_a_expression_, lt_b_expression_, lt_t_expression_, \
+        LT_DETAIL_JOIN(lt_near_actual_at_line_, __LINE__), \
+        LT_DETAIL_JOIN(lt_near_expected_at_line_, __LINE__), \
+        LT_DETAIL_JOIN(lt_near_tolerance_at_line_, __LINE__))
+
+#define LT_NEAR_IMPL(lt_actual_, lt_expected_, lt_tolerance_, lt_mode_, lt_a_expression_, lt_b_expression_, lt_t_expression_, lt_a_local_, lt_b_local_, lt_t_local_) \
+    do { \
+        try \
+        { \
+            const auto& lt_a_local_ = (lt_actual_); \
+            const auto& lt_b_local_ = (lt_expected_); \
+            const auto& lt_t_local_ = (lt_tolerance_); \
+            if(!littletest::detail::numbers_near(lt_a_local_, lt_b_local_, lt_t_local_)) \
+                littletest::detail::raise_failure(lt_mode_, \
+                    littletest::detail::near_failure(lt_name_, __FILE__, __LINE__, \
+                        lt_a_expression_, lt_b_expression_, lt_t_expression_, lt_a_local_, lt_b_local_, lt_t_local_)); \
+            LT_ADD_SUCCESS(lt_mode_) \
+        } \
+        LT_CATCH_ERRORS \
+    } while(false)
+
+#define LT_WARN_MSG(lt_val_, lt_message_) LT_MSG_EV((lt_val_), (lt_message_), LT_MODE_WARN, #lt_val_)
+#define LT_CHECK_MSG(lt_val_, lt_message_) LT_MSG_EV((lt_val_), (lt_message_), LT_MODE_CHECK, #lt_val_)
+#define LT_ASSERT_MSG(lt_val_, lt_message_) LT_MSG_EV((lt_val_), (lt_message_), LT_MODE_ASSERT, #lt_val_)
+#define LT_WARN_THROW_AS(lt_operation_, lt_type_) LT_THROW_AS_EV((lt_operation_), lt_type_, LT_MODE_WARN, #lt_operation_, #lt_type_)
+#define LT_CHECK_THROW_AS(lt_operation_, lt_type_) LT_THROW_AS_EV((lt_operation_), lt_type_, LT_MODE_CHECK, #lt_operation_, #lt_type_)
+#define LT_ASSERT_THROW_AS(lt_operation_, lt_type_) LT_THROW_AS_EV((lt_operation_), lt_type_, LT_MODE_ASSERT, #lt_operation_, #lt_type_)
+#define LT_WARN_NEAR(lt_actual_, lt_expected_, lt_tolerance_) LT_NEAR_EV((lt_actual_), (lt_expected_), (lt_tolerance_), LT_MODE_WARN, #lt_actual_, #lt_expected_, #lt_tolerance_)
+#define LT_CHECK_NEAR(lt_actual_, lt_expected_, lt_tolerance_) LT_NEAR_EV((lt_actual_), (lt_expected_), (lt_tolerance_), LT_MODE_CHECK, #lt_actual_, #lt_expected_, #lt_tolerance_)
+#define LT_ASSERT_NEAR(lt_actual_, lt_expected_, lt_tolerance_) LT_NEAR_EV((lt_actual_), (lt_expected_), (lt_tolerance_), LT_MODE_ASSERT, #lt_actual_, #lt_expected_, #lt_tolerance_)
 
 #define LT_FAIL(lt_message_) \
     do { \
@@ -364,6 +419,126 @@ inline double calculate_duration(const clock::time_point& before, const clock::t
 
 namespace detail
 {
+    template <class T>
+    auto append_value_impl(std::ostream& stream, const T& value, int)
+        -> decltype(stream << value, void())
+    {
+        stream << value;
+    }
+
+    template <class T>
+    void append_value_impl(std::ostream& stream, const T&, long)
+    {
+        stream << "<unprintable>";
+    }
+
+    template <class T>
+    void append_value(std::ostream& stream, const T& value)
+    {
+        append_value_impl(stream, value, 0);
+    }
+
+    inline std::string failure_prefix(const char* name, const char* file, int line)
+    {
+        std::ostringstream stream;
+        stream << "(" << file << ":" << line << ") - error in \"" << name << "\": ";
+        return stream.str();
+    }
+
+    inline void raise_failure(int mode, const std::string& message)
+    {
+        if(mode == LT_MODE_WARN)
+            throw warn_unattended(message);
+        if(mode == LT_MODE_CHECK)
+            throw check_unattended(message);
+        throw assert_unattended(message);
+    }
+
+    inline std::string simple_failure(const char* name, const char* file, int line,
+                                      const char* expression)
+    {
+        return failure_prefix(name, file, line) + "condition failed: " + expression;
+    }
+
+    template <class Message>
+    std::string simple_failure(const char* name, const char* file, int line,
+                               const char* expression, const Message& message)
+    {
+        std::ostringstream stream;
+        stream << simple_failure(name, file, line, expression) << "; message: ";
+        append_value(stream, message);
+        return stream.str();
+    }
+
+    template <class A, class B>
+    std::string comparison_failure(const char* name, const char* file, int line,
+                                   const char* a_expression, const char* b_expression,
+                                   const char* operation, const A& a, const B& b)
+    {
+        std::ostringstream stream;
+        stream << failure_prefix(name, file, line) << "expected: "
+               << a_expression << " " << operation << " " << b_expression << "; actual: ";
+        append_value(stream, a);
+        stream << " " << operation << " ";
+        append_value(stream, b);
+        return stream.str();
+    }
+
+    template <class Expected, class Operation>
+    void require_throw_as(const Operation& operation, const char* name, const char* file,
+                          int line, int mode, const char* expression, const char* type_name)
+    {
+        try
+        {
+            operation();
+        }
+        catch(const Expected&)
+        {
+            return;
+        }
+        catch(...)
+        {
+            raise_failure(mode, failure_prefix(name, file, line) + "expected " + type_name
+                + " from " + expression + "; unexpected exception type");
+        }
+        raise_failure(mode, failure_prefix(name, file, line) + "expected " + type_name
+            + " from " + expression + "; no exception thrown");
+    }
+
+    template <class A, class B, class Tolerance>
+    bool numbers_near(const A& actual, const B& expected, const Tolerance& tolerance)
+    {
+        static_assert(std::is_arithmetic<A>::value && std::is_arithmetic<B>::value
+            && std::is_arithmetic<Tolerance>::value, "NEAR requires arithmetic arguments");
+        const long double a = static_cast<long double>(actual);
+        const long double b = static_cast<long double>(expected);
+        const long double t = static_cast<long double>(tolerance);
+        if(!std::isfinite(t) || t < 0 || std::isnan(a) || std::isnan(b))
+            return false;
+        if(a == b)
+            return true;
+        if(!std::isfinite(a) || !std::isfinite(b))
+            return false;
+        return std::fabs(a - b) <= t;
+    }
+
+    template <class A, class B, class Tolerance>
+    std::string near_failure(const char* name, const char* file, int line,
+                             const char* a_expression, const char* b_expression,
+                             const char* t_expression, const A& a, const B& b,
+                             const Tolerance& tolerance)
+    {
+        std::ostringstream stream;
+        stream << failure_prefix(name, file, line) << "expected: " << a_expression
+               << " near " << b_expression << "; absolute tolerance " << t_expression << " = ";
+        append_value(stream, tolerance);
+        stream << "; actual: ";
+        append_value(stream, a);
+        stream << " vs ";
+        append_value(stream, b);
+        return stream.str();
+    }
+
     template <class First, class Second>
     bool collections_equal(First first, First last, Second second)
     {
@@ -396,6 +571,130 @@ inline std::vector<test_base*>& auto_test_vector()
     return tests;
 }
 
+namespace detail
+{
+    struct command_line_options
+    {
+        bool active = false;
+        bool list = false;
+        bool has_filter = false;
+        std::string filter;
+        std::size_t matches = 0;
+    };
+
+    inline command_line_options& environment_options()
+    {
+        static command_line_options options;
+        return options;
+    }
+
+    inline bool name_matches(const char* name, const char* pattern)
+    {
+        const char* star = 0;
+        const char* retry = 0;
+        while(*name)
+        {
+            if(*pattern == '*')
+            {
+                star = pattern++;
+                retry = name;
+            }
+            else if(*pattern == '?' || *pattern == *name)
+            {
+                ++pattern;
+                ++name;
+            }
+            else if(star)
+            {
+                pattern = star + 1;
+                name = ++retry;
+            }
+            else
+                return false;
+        }
+        while(*pattern == '*')
+            ++pattern;
+        return !*pattern;
+    }
+
+    inline bool select_test(const char* name)
+    {
+        command_line_options& options = environment_options();
+        if(!options.active)
+            return true;
+        if(options.has_filter && !name_matches(name, options.filter.c_str()))
+            return false;
+        ++options.matches;
+        return true;
+    }
+
+    inline int command_line_error(const std::string& message)
+    {
+        std::cerr << "littletest: " << message << std::endl;
+        std::cerr << "Usage: tests [--list] [--filter PATTERN | --filter=PATTERN]" << std::endl;
+        environment_options().active = false;
+        return EXIT_FAILURE;
+    }
+
+    inline int no_filter_matches()
+    {
+        std::cerr << "littletest: no tests match filter \""
+            << environment_options().filter << "\"" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    inline int list_registered_tests();
+
+    // -1 allows the user's environment body to execute; other values exit main.
+    inline int begin_environment(int argc, char** argv)
+    {
+        command_line_options& options = environment_options();
+        options = command_line_options();
+        options.active = true;
+        environment_failed() = false;
+        for(int i = 1; i < argc; ++i)
+        {
+            const std::string argument(argv[i]);
+            if(argument == "--list")
+                options.list = true;
+            else if(argument == "--filter" || argument.compare(0, 9, "--filter=") == 0)
+            {
+                if(options.has_filter)
+                    return command_line_error("--filter may only be specified once");
+                if(argument == "--filter")
+                {
+                    if(i + 1 == argc || std::string(argv[i + 1]).compare(0, 2, "--") == 0)
+                        return command_line_error("--filter requires a nonempty PATTERN");
+                    options.filter = argv[++i];
+                }
+                else
+                    options.filter = argument.substr(9);
+                if(options.filter.empty())
+                    return command_line_error("--filter requires a nonempty PATTERN");
+                options.has_filter = true;
+            }
+            else
+                return command_line_error("unknown argument \"" + argument + "\"");
+        }
+        if(options.list)
+        {
+            const int status = list_registered_tests();
+            options.active = false;
+            return status;
+        }
+        return -1;
+    }
+
+    inline int end_environment()
+    {
+        command_line_options& options = environment_options();
+        options.active = false;
+        if(options.has_filter && !options.matches)
+            return no_filter_matches();
+        return environment_failed() ? EXIT_FAILURE : EXIT_SUCCESS;
+    }
+}
+
 class test_runner
 {
     public:
@@ -415,6 +714,9 @@ class test_runner
         template <class test_impl>
         test_runner& run(test_impl* t)
         {
+            if(!detail::select_test(t->lt_name_))
+                return *this;
+
             std::cout << "Running test (" <<
                 test_counter << "): " <<
                 t->lt_name_ << std::endl;
@@ -556,6 +858,18 @@ class test_base
         virtual void run_test(test_runner* tr) { }
         virtual void operator()() { }
 };
+
+namespace detail
+{
+    inline int list_registered_tests()
+    {
+        for(test_base* test : auto_test_vector())
+            if(select_test(test->lt_name_))
+                std::cout << test->lt_name_ << std::endl;
+        const command_line_options& options = environment_options();
+        return options.has_filter && !options.matches ? no_filter_matches() : EXIT_SUCCESS;
+    }
+}
 
 inline test_runner& auto_test_runner()
 {
