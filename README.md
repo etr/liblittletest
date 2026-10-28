@@ -132,14 +132,18 @@ automatically.
 **Checks**
 
 Checks are simple controls. A failed check represents a failure for the runner and, otherwise, a succeeded check represents a success.
+
 * LT_CHECK(expr) : the check succeeds if expr returns true;
+* LT_CHECK_MSG(expr, message) : the check succeeds if expr returns true; evaluates and prints message only on failure;
 * LT_CHECK_EQ(a,b) : the check succeeds if a is equal to b;
 * LT_CHECK_NEQ(a,b) : the check succeeds if a is not equal to b;
 * LT_CHECK_GT(a, b) : the check succeeds if a is greater than b;
 * LT_CHECK_GTE(a, b) : the check succeeds if a is greater or equal to b;
 * LT_CHECK_LT(a, b) : the check succeeds if a is lesser than b;
 * LT_CHECK_LTE(a, b) : the check succeeds if a is lessert or equal to b;
+* LT_CHECK_NEAR(actual, expected, tolerance) : the check succeeds if the values are within the explicit absolute tolerance;
 * LT_CHECK_THROW(expr) : the check succeeds if expr raises an exception;
+* LT_CHECK_THROW_AS(expr, Type) : the check succeeds if expr raises an exception matching Type;
 * LT_CHECK_NOTHROW(expr) : the check succeeds if expr does not raise an exception;
 * LT_CHECK_COLLECTIONS_EQ(first1, last1, first2, last2) : the check succeeds if both ranges have equal lengths and elements;
 * LT_CHECK_COLLECTIONS_NEQ(first1, last1, first2, last2) : the check succeeds if the ranges differ in length or elements;
@@ -147,14 +151,18 @@ Checks are simple controls. A failed check represents a failure for the runner a
 **Warnings**
 
 Warnings are used to signal that maybe a problem (but not that the test failed). A failed warn control does not represent a failure for the runner and, for the same reason, a succeeded warn control does not represent a success.
+
 * LT_WARN(expr) : the check succeeds if expr returns true;
+* LT_WARN_MSG(expr, message) : the warning succeeds if expr returns true; evaluates and prints message only on failure;
 * LT_WARN_EQ(a,b) : the check succeeds if a is equal to b;
 * LT_WARN_NEQ(a,b) : the check succeeds if a is not equal to b;
 * LT_WARN_GT(a, b) : the check succeeds if a is greater than b;
 * LT_WARN_GTE(a, b) : the check succeeds if a is greater or equal to b;
 * LT_WARN_LT(a, b) : the check succeeds if a is lesser than b;
 * LT_WARN_LTE(a, b) : the check succeeds if a is lessert or equal to b;
+* LT_WARN_NEAR(actual, expected, tolerance) : the warning succeeds if the values are within the explicit absolute tolerance;
 * LT_WARN_THROW(expr) : the check succeeds if expr raises an exception;
+* LT_WARN_THROW_AS(expr, Type) : the warning succeeds if expr raises an exception matching Type;
 * LT_WARN_NOTHROW(expr) : the check succeeds if expr does not raise an exception;
 * LT_WARN_COLLECTIONS_EQ(first1, last1, first2, last2) : the warning succeeds if both ranges have equal lengths and elements;
 * LT_WARN_COLLECTIONS_NEQ(first1, last1, first2, last2) : the warning succeeds if the ranges differ in length or elements;
@@ -162,14 +170,18 @@ Warnings are used to signal that maybe a problem (but not that the test failed).
 **Asserts**
 
 Asserts are serious controls that need to be satisfied in order to continue a test. When an assert is unattended the test must be interrupted and the next test is executed. A failed assert represents a failure for the runner and, otherwise, a succeeded assert represents a success.
+
 * LT_ASSERT(expr) : the check succeeds if expr returns true;
+* LT_ASSERT_MSG(expr, message) : the assertion succeeds if expr returns true; evaluates and prints message only on failure;
 * LT_ASSERT_EQ(a,b) : the check succeeds if a is equal to b;
 * LT_ASSERT_NEQ(a,b) : the check succeeds if a is not equal to b;
 * LT_ASSERT_GT(a, b) : the check succeeds if a is greater than b;
 * LT_ASSERT_GTE(a, b) : the check succeeds if a is greater or equal to b;
 * LT_ASSERT_LT(a, b) : the check succeeds if a is lesser than b;
 * LT_ASSERT_LTE(a, b) : the check succeeds if a is lessert or equal to b;
+* LT_ASSERT_NEAR(actual, expected, tolerance) : the assertion succeeds if the values are within the explicit absolute tolerance;
 * LT_ASSERT_THROW(expr) : the check succeeds if expr raises an exception;
+* LT_ASSERT_THROW_AS(expr, Type) : the assertion succeeds if expr raises an exception matching Type;
 * LT_ASSERT_NOTHROW(expr) : the check succeeds if expr does not raise an exception;
 * LT_ASSERT_COLLECTIONS_EQ(first1, last1, first2, last2) : the assertion succeeds if both ranges have equal lengths and elements;
 * LT_ASSERT_COLLECTIONS_NEQ(first1, last1, first2, last2) : the assertion succeeds if the ranges differ in length or elements;
